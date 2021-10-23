@@ -463,7 +463,7 @@ public class StandardGifDecoder implements GifDecoder {
         int bottomLeft = topLeft + downsampledIH * downsampledWidth;
         for (int left = topLeft; left < bottomLeft; left += downsampledWidth) {
           int right = left + downsampledIW;
-          for (int pointer = left; pointer < right; pointer++) {
+          for (int pointer = left; pointer < right && pointer < dest.length; pointer++) {
             dest[pointer] = c;
           }
         }
@@ -525,7 +525,7 @@ public class StandardGifDecoder implements GifDecoder {
       // Start of line in source.
       int sx = i * currentFrame.iw;
 
-      while (dx < dlim) {
+      while (dx < dlim && dx < dest.length) {
         byte byteCurrentColorIndex = mainPixels[sx];
         int currentColorIndex = ((int) byteCurrentColorIndex) & MASK_INT_LOWEST_BYTE;
         if (currentColorIndex != transparentColorIndex) {
