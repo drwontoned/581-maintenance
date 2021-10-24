@@ -599,7 +599,7 @@ public class GifDrawableTest {
 
   @Test
   public void onFrameReady_whenAttachedToDrawableCallbackButNotViewCallback_stops() {
-    TransitionDrawable topLevel = new TransitionDrawable(new Drawable[] {drawable});
+    TransitionDrawable topLevel = new TransitionDrawable(new Drawable[]{drawable});
     drawable.setCallback(topLevel);
     topLevel.setCallback(null);
 
@@ -611,7 +611,7 @@ public class GifDrawableTest {
 
   @Test
   public void onFrameReady_whenAttachedtoDrawableCallbackWithViewCallbackParent_doesNotStop() {
-    TransitionDrawable topLevel = new TransitionDrawable(new Drawable[] {drawable});
+    TransitionDrawable topLevel = new TransitionDrawable(new Drawable[]{drawable});
     drawable.setCallback(topLevel);
     topLevel.setCallback(new View(context));
 
@@ -619,6 +619,21 @@ public class GifDrawableTest {
     drawable.onFrameReady();
 
     assertThat(drawable.isRunning()).isTrue();
+  }
+
+  @Test
+  public void testObtainBitmapArray() {
+    int frameCount = 2;
+    int frameIndex = 0;
+    Bitmap frame = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
+    GifDecoder gifDecoder = mock(GifDecoder.class);
+    when(frameLoader.getGifDecoder()).thenReturn(gifDecoder);
+    when((gifDecoder.getFrameCount())).thenReturn(frameCount);
+    when(gifDecoder.getCurrentFrameIndex()).thenReturn(frameIndex);
+    when(gifDecoder.getNextFrame()).thenReturn(frame);
+    Bitmap bitmaps[] = drawable.obtainBitmap();
+    assertEquals(bitmaps[0], frame);
+    assertEquals(bitmaps.length,frameCount);
   }
 
   private void verifyRanLoops(int loopCount, int frameCount) {
@@ -638,7 +653,9 @@ public class GifDrawableTest {
     }
   }
 
-  /** Keeps track of the set of Bitmaps drawn to the canvas. */
+  /**
+   * Keeps track of the set of Bitmaps drawn to the canvas.
+   */
   @Implements(Canvas.class)
   public static final class BitmapTrackingShadowCanvas extends ShadowCanvas {
     private final Set<Bitmap> drawnBitmaps = new HashSet<>();
