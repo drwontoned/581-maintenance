@@ -428,6 +428,22 @@ public class GifDrawable extends Drawable
     }
   }
 
+  /**
+   * Get all frames as Bitmap
+   * @return Bitmap array of frames
+   */
+  public Bitmap[] obtainBitmap(){
+    GifFrameLoader frameLoader = state.frameLoader;
+    GifDecoder gifDecoder = frameLoader.getGifDecoder();
+    Bitmap[] bitmaps = new Bitmap[gifDecoder.getFrameCount()];
+    for(int i = 0,index = gifDecoder.getCurrentFrameIndex();i<gifDecoder.getFrameCount();++i){
+      Bitmap bitmap = gifDecoder.getNextFrame();
+      bitmaps[index+i] = bitmap;
+      gifDecoder.advance();
+    }
+    return bitmaps;
+  }
+
   static final class GifState extends ConstantState {
     @VisibleForTesting final GifFrameLoader frameLoader;
 
