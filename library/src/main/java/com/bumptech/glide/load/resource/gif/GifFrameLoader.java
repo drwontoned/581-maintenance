@@ -363,6 +363,10 @@ class GifFrameLoader {
     return new ObjectKey(Math.random());
   }
 
+  public GifDecoder getGifDecoder(){
+    return gifDecoder;
+  }
+
   @VisibleForTesting
   interface OnEveryFrameListener {
     void onFrameReady();
