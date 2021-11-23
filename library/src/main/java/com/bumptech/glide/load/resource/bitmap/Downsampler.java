@@ -332,13 +332,9 @@ public final class Downsampler {
     boolean isExifOrientationRequired = TransformationUtils.isExifOrientationRequired(orientation);
 
     int targetWidth =
-        requestedWidth == Target.SIZE_ORIGINAL
-            ? (isRotationRequired(degreesToRotate) ? sourceHeight : sourceWidth)
-            : requestedWidth;
+        getTargetWidth(requestedWidth, sourceWidth, sourceHeight, degreesToRotate);
     int targetHeight =
-        requestedHeight == Target.SIZE_ORIGINAL
-            ? (isRotationRequired(degreesToRotate) ? sourceWidth : sourceHeight)
-            : requestedHeight;
+        getTargetHeight(requestedHeight, sourceWidth, sourceHeight, degreesToRotate);
 
     ImageType imageType = imageReader.getImageType();
 
@@ -363,9 +359,45 @@ public final class Downsampler {
         targetWidth,
         targetHeight);
 
+    setInBitmapExactly(options, fixBitmapToRequestedDimensions, sourceWidth, sourceHeight, targetWidth,
+        targetHeight, imageType);
+
+    if (preferredColorSpace != null) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        boolean isP3Eligible =
+            preferredColorSpace == PreferredColorSpace.DISPLAY_P3
+                && options.outColorSpace != null
+                && options.outColorSpace.isWideGamut();
+        options.inPreferredColorSpace =
+            ColorSpace.get(isP3Eligible ? ColorSpace.Named.DISPLAY_P3 : ColorSpace.Named.SRGB);
+      } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        options.inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.SRGB);
+      }
+    }
+
+    Bitmap downsampled = decodeStream(imageReader, options, callbacks, bitmapPool);
+    callbacks.onDecodeComplete(bitmapPool, downsampled);
+
+    if (Log.isLoggable(TAG, Log.VERBOSE)) {
+      logDecode(
+          sourceWidth,
+          sourceHeight,
+          sourceMimeType,
+          options,
+          downsampled,
+          requestedWidth,
+          requestedHeight,
+          startTime);
+    }
+
+    return resetDensity(orientation, downsampled);
+  }
+
+  private void setInBitmapExactly(BitmapFactory.Options options, boolean fixBitmapToRequestedDimensions,
+      int sourceWidth, int sourceHeight, int targetWidth, int targetHeight, ImageType imageType) {
     boolean isKitKatOrGreater = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
     // Prior to KitKat, the inBitmap size must exactly match the size of the bitmap we're decoding.
-    if ((options.inSampleSize == 1 || isKitKatOrGreater) && shouldUsePool(imageType)) {
+    if (isUseExactSize(options, imageType, isKitKatOrGreater)) {
       int expectedWidth;
       int expectedHeight;
       if (sourceWidth >= 0
@@ -412,35 +444,10 @@ public final class Downsampler {
         setInBitmap(options, bitmapPool, expectedWidth, expectedHeight);
       }
     }
+  }
 
-    if (preferredColorSpace != null) {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        boolean isP3Eligible =
-            preferredColorSpace == PreferredColorSpace.DISPLAY_P3
-                && options.outColorSpace != null
-                && options.outColorSpace.isWideGamut();
-        options.inPreferredColorSpace =
-            ColorSpace.get(isP3Eligible ? ColorSpace.Named.DISPLAY_P3 : ColorSpace.Named.SRGB);
-      } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        options.inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.SRGB);
-      }
-    }
-
-    Bitmap downsampled = decodeStream(imageReader, options, callbacks, bitmapPool);
-    callbacks.onDecodeComplete(bitmapPool, downsampled);
-
-    if (Log.isLoggable(TAG, Log.VERBOSE)) {
-      logDecode(
-          sourceWidth,
-          sourceHeight,
-          sourceMimeType,
-          options,
-          downsampled,
-          requestedWidth,
-          requestedHeight,
-          startTime);
-    }
-
+  @Nullable
+  private Bitmap resetDensity(int orientation, Bitmap downsampled) {
     Bitmap rotated = null;
     if (downsampled != null) {
       // If we scaled, the Bitmap density will be our inTargetDensity. Here we correct it back to
@@ -452,9 +459,29 @@ public final class Downsampler {
         bitmapPool.put(downsampled);
       }
     }
-
     return rotated;
   }
+
+
+  private int getTargetWidth(int requestedWidth, int sourceWidth, int sourceHeight,
+      int degreesToRotate) {
+    return requestedWidth == Target.SIZE_ORIGINAL
+        ? (isRotationRequired(degreesToRotate) ? sourceHeight : sourceWidth)
+        : requestedWidth;
+  }
+
+  private int getTargetHeight(int requestedHeight, int sourceWidth, int sourceHeight,
+      int degreesToRotate) {
+    return requestedHeight == Target.SIZE_ORIGINAL
+        ? (isRotationRequired(degreesToRotate) ? sourceWidth : sourceHeight)
+        : requestedHeight;
+  }
+
+  private boolean isUseExactSize(BitmapFactory.Options options, ImageType imageType,
+      boolean isKitKatOrGreater) {
+    return (options.inSampleSize == 1 || isKitKatOrGreater) && shouldUsePool(imageType);
+  }
+
 
   private static void calculateScaling(
       ImageType imageType,
