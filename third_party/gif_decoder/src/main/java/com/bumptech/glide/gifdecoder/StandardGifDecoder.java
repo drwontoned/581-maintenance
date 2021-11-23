@@ -441,38 +441,7 @@ public class StandardGifDecoder implements GifDecoder {
       Arrays.fill(dest, COLOR_TRANSPARENT_BLACK);
     }
 
-    // fill in starting image contents based on last image's dispose code
-    if (previousFrame != null && previousFrame.dispose > DISPOSAL_UNSPECIFIED) {
-      // We don't need to do anything for DISPOSAL_NONE, if it has the correct pixels so will our
-      // mainScratch and therefore so will our dest array.
-      if (previousFrame.dispose == DISPOSAL_BACKGROUND) {
-        // Start with a canvas filled with the background color
-        @ColorInt int c = COLOR_TRANSPARENT_BLACK;
-        if (!currentFrame.transparency) {
-          c = header.bgColor;
-          if (currentFrame.lct != null && header.bgIndex == currentFrame.transIndex) {
-            c = COLOR_TRANSPARENT_BLACK;
-          }
-        }
-        // The area used by the graphic must be restored to the background color.
-        int downsampledIH = previousFrame.ih / sampleSize;
-        int downsampledIY = previousFrame.iy / sampleSize;
-        int downsampledIW = previousFrame.iw / sampleSize;
-        int downsampledIX = previousFrame.ix / sampleSize;
-        int topLeft = downsampledIY * downsampledWidth + downsampledIX;
-        int bottomLeft = topLeft + downsampledIH * downsampledWidth;
-        for (int left = topLeft; left < bottomLeft; left += downsampledWidth) {
-          int right = left + downsampledIW;
-          for (int pointer = left; pointer < right && pointer < dest.length; pointer++) {
-            dest[pointer] = c;
-          }
-        }
-      } else if (previousFrame.dispose == DISPOSAL_PREVIOUS && previousImage != null) {
-        // Start with the previous frame
-        previousImage.getPixels(dest, 0, downsampledWidth, 0, 0, downsampledWidth,
-            downsampledHeight);
-      }
-    }
+   setPixelsByPreviousFrame(currentFrame, previousFrame, dest);
 
     // Decode pixels for this frame into the global pixels[] scratch.
     decodeBitmapData(currentFrame);
@@ -483,6 +452,15 @@ public class StandardGifDecoder implements GifDecoder {
       copyIntoScratchFast(currentFrame);
     }
 
+    copyIntoPreviousImage(currentFrame, dest);
+
+    // Set pixels for current image.
+    Bitmap result = getNextBitmap();
+    result.setPixels(dest, 0, downsampledWidth, 0, 0, downsampledWidth, downsampledHeight);
+    return result;
+  }
+
+  private void copyIntoPreviousImage(GifFrame currentFrame, int[] dest) {
     // Copy pixels into previous image
     if (savePrevious && (currentFrame.dispose == DISPOSAL_UNSPECIFIED
         || currentFrame.dispose == DISPOSAL_NONE)) {
@@ -492,11 +470,51 @@ public class StandardGifDecoder implements GifDecoder {
       previousImage.setPixels(dest, 0, downsampledWidth, 0, 0, downsampledWidth,
           downsampledHeight);
     }
+  }
 
-    // Set pixels for current image.
-    Bitmap result = getNextBitmap();
-    result.setPixels(dest, 0, downsampledWidth, 0, 0, downsampledWidth, downsampledHeight);
-    return result;
+  /**
+   * Fill in starting image contents based on last image's dispose code
+   * @param currentFrame The currentFrame
+   * @param previousFrame The previousFrame
+   * @param dest
+   */
+  private void setPixelsByPreviousFrame(GifFrame currentFrame, GifFrame previousFrame, int[] dest) {
+    // fill in starting image contents based on last image's dispose code
+    if (previousFrame != null && previousFrame.dispose > DISPOSAL_UNSPECIFIED) {
+      // We don't need to do anything for DISPOSAL_NONE, if it has the correct pixels so will our
+      // mainScratch and therefore so will our dest array.
+      if (previousFrame.dispose == DISPOSAL_BACKGROUND) {
+        // Start with a canvas filled with the background color
+        setPixelsWhileDisposeBackground(currentFrame, previousFrame, dest);
+      } else if (previousFrame.dispose == DISPOSAL_PREVIOUS && previousImage != null) {
+        // Start with the previous frame
+        previousImage.getPixels(dest, 0, downsampledWidth, 0, 0, downsampledWidth,
+            downsampledHeight);
+      }
+    }
+  }
+
+  private void setPixelsWhileDisposeBackground(GifFrame currentFrame, GifFrame previousFrame, int[] dest) {
+    @ColorInt int c = COLOR_TRANSPARENT_BLACK;
+    if (!currentFrame.transparency) {
+      c = header.bgColor;
+      if (currentFrame.lct != null && header.bgIndex == currentFrame.transIndex) {
+        c = COLOR_TRANSPARENT_BLACK;
+      }
+    }
+    // The area used by the graphic must be restored to the background color.
+    int downsampledIH = previousFrame.ih / sampleSize;
+    int downsampledIY = previousFrame.iy / sampleSize;
+    int downsampledIW = previousFrame.iw / sampleSize;
+    int downsampledIX = previousFrame.ix / sampleSize;
+    int topLeft = downsampledIY * downsampledWidth + downsampledIX;
+    int bottomLeft = topLeft + downsampledIH * downsampledWidth;
+    for (int left = topLeft; left < bottomLeft; left += downsampledWidth) {
+      int right = left + downsampledIW;
+      for (int pointer = left; pointer < right && pointer < dest.length; pointer++) {
+        dest[pointer] = c;
+      }
+    }
   }
 
   private void copyIntoScratchFast(GifFrame currentFrame) {
